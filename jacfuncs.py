@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 """
-Spyder Editor
-
-This is a temporary script file.
+This is where I compute the Jacobian of the linear problem to be used as the preconditioner
+See McCue appendix A, B for details
 """
 #import scipy as sc
 import numpy as np
