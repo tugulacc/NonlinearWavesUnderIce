@@ -26,6 +26,7 @@ F = 1./np.sqrt(0.7)
 beta = 0.5
 n, epsi = 0.05, 1.
 epsiMax, amp = 1., 1.
+Lx = 1.
 
 # Defining the domain
 x = dx*sc.r_[:N] + x1
@@ -67,7 +68,7 @@ start_time = time.time()
 # try using the gmres solver
 # uNew = optimize.newton_krylov(lambda u: wakeMcCue.wake(u,x,y,dx,N,M,n,F,epsi), uInit, method='lgmres', inner_M=Jinv, verbose=1)
 
-uNew = optimize.fsolve(wakeMcCue.wake,uInit,args=(x,y,dx,dy,N,M,n,F,epsi,beta))
+uNew = optimize.fsolve(wakeMcCue.wake,uInit,args=(x,y,dx,dy,N,M,n,F,epsi,beta, Lx))
 
 print("--- %s seconds ---" % (time.time() - start_time))
 
