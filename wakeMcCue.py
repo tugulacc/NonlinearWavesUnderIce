@@ -1,12 +1,12 @@
 """
-Function to compute system of equations
+Function to compute (unordered) system of equations
 
 """
 import numpy as np
 import funcs
 import Pflex
 
-def wake(u,x,y,dx,dy,N,M,n,F,epsi,beta):
+def wake(u,x,y,dx,dy,N,M,n,F,epsi,beta,Lx):
     # computing all needed quantities
     [phi1, phix, zeta1, zetax] = funcs.reshapingUnknowns(u,M,N)
     phi = funcs.allVals(phi1,phix,dx,M,N)
@@ -14,13 +14,9 @@ def wake(u,x,y,dx,dy,N,M,n,F,epsi,beta):
     # y-derivatives 
     phiy = np.gradient(phi, axis=0)
     zetay = np.gradient(zeta, axis=0)
-    # second derivative computed as forward differnce on first derivatives
+    # second derivative computed as forward difference on first derivatives
     phixx1 = funcs.xDerivs(phix,dx)
     zetaxx1 = funcs.xDerivs(zetax,dx)
-    
-    # computing Pflex term
-    Pflx = Pflex.Bilaplacian(zeta,dx,dy)
-    PflxH = funcs.halfMesh(Pflx,N)
     
     # computing half-mesh points
     phiH = funcs.halfMesh(phi,N)
@@ -31,15 +27,10 @@ def wake(u,x,y,dx,dy,N,M,n,F,epsi,beta):
     zetayH = funcs.halfMesh(zetay,N) 
     xH = (x[1:]+x[:-1])/2.
     
-    # computing pressure term
-    P = np.zeros((M,N-1))
-    xInd = np.array((np.abs(xH)<1),'double')
-    yInd = np.array((np.abs(y)<1),'double')
-    Pind = np.outer(xInd,yInd)
-    # p(i,j)=eps*exp(1/(x(i)**2-1.))*exp(1/(y(j)**2-1.))
-    
-    P = np.exp(1./(xH**2.-1.)+1./(y**2.-1.))*Pind.T
-    
+    ''' 
+    compute (x-x*), (y-y*), (y+y*) for kernal functions 
+    see Eq.(12) in McCue paper 
+    '''
     Dx = x - xH[:,None]
     Dy1 = y - y[:,None]
     Dy2 = y + y[:,None]
@@ -50,8 +41,31 @@ def wake(u,x,y,dx,dy,N,M,n,F,epsi,beta):
     I2pp = np.zeros((M,N-1))
     eqnsInt = np.zeros((M,N-1))
     
+    ''' computing the pressure term '''
+    P = np.zeros((M,N-1))
+    xInd = np.array((np.abs(xH)<Lx),'double')
+    yInd = np.array((np.abs(y)<1),'double')
+    Pind = np.outer(xInd,yInd)
+    P = epsi*np.exp(Lx**2./(xH**2.-Lx**2.)+1./(y**2.-1.))*Pind.T
+    
+    '''
+    Computing the flexural term
+    Uncomment the D function you want to use for variable thickness
+    '''
+    Pflx = Pflex.Bilaplacian(zeta,dx,dy)
+    PflxH = funcs.halfMesh(Pflx,N)
+    flxtrm = beta*PflxH # constant thickness
 
-    eqnsSurf = 1./2.*((1+zetaxH**2.)*phiyH**2.+(1+zetayH**2.)*phixH**2.-2.*zetaxH*zetayH*phixH*phiyH)/(1.+zetaxH**2.+zetayH**2.) + zetaH/F**2.-1./2. + beta*PflxH + epsi*P
+    # D = (1/2/(1. + np.exp(-beta*xH))+1/2)
+    # D = (1/(1. + np.exp(-beta*xH)))
+    # D = 1/4*np.sin(20*np.pi/(np.abs(xH[0])+xH[-1])*xH) + 3/4
+    # D = 1/4*np.sin(10*np.pi/np.max(y)*y)+3/4
+    # D = (1/2/(1. + np.exp(-0.5*(y-np.max(y)/2)))+1/2)
+    # D = 1/(1. + np.exp(-(y-np.max(y)/2)))
+    # flxtrm = np.multiply(D,PflxH)
+    
+    
+    eqnsSurf = 1./2.*((1+zetaxH**2.)*phiyH**2.+(1+zetayH**2.)*phixH**2.-2.*zetaxH*zetayH*phixH*phiyH)/(1.+zetaxH**2.+zetayH**2.) + zetaH/F**2.-1./2. + P + flxtrm 
     
     for jj in range(M):
         for ii in range(N-1):
@@ -104,7 +118,7 @@ def wake(u,x,y,dx,dy,N,M,n,F,epsi,beta):
             
             I2pp[jj,ii] *=  zetaxH[jj,ii] 
             
-            # eqnsInt[jj,ii] = - 2.*np.pi*(phiH[jj,ii] - xH[ii]) - epsi/np.sqrt(xH[ii]**2. + y[jj]**2. + (zetaH[jj,ii]+1.)**2.) + I1[jj,ii] + I2p[jj,ii] + I2pp[jj,ii]
+            # eqnsInt[jj,ii] = - 2.*np.pi*(phiH[jj,ii] - xH[ii]) + I1[jj,ii] + I2p[jj,ii] + I2pp[jj,ii] - epsi/np.sqrt(xH[ii]**2. + y[jj]**2. + (zetaH[jj,ii]+1.)**2.) # uncomment to include source term
             eqnsInt[jj,ii] = - 2.*np.pi*(phiH[jj,ii] - xH[ii]) + I1[jj,ii] + I2p[jj,ii] + I2pp[jj,ii]
             
     bc1 = x[0]*(phix[:,0]-1.)+n*(phi[:,0]-x[0])
